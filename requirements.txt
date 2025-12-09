@@ -1,0 +1,17 @@
+pandas
+numpy
+pdfplumber
+python-dateutil
+scikit-learn
+joblib
+fastapi
+uvicorn
+pydantic
+python-multipart
+streamlit
+passlib[bcrypt]
+pyjwt
+tqdm
+faker
+matplotlib
+seaborn
