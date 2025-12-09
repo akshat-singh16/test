@@ -1,52 +1,59 @@
-# Replace with full api.py from canvas
-"""api.py
-Simple FastAPI server that loads model.pkl and vectorizer.pkl and exposes /predict
-"""
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List
 import joblib
 import os
-from typing import List
 
 
-MODEL_FILE = os.environ.get('MODEL_FILE', 'model.pkl')
-VECT_FILE = os.environ.get('VECT_FILE', 'vectorizer.pkl')
+MODEL_FILE = "model.pkl"
+VECT_FILE = "vectorizer.pkl"
 
+app = FastAPI(title="Smart Expense Advisor API")
 
-model = None
-vectorizer = None
-
-
+# Load model & vectorizer
 if os.path.exists(MODEL_FILE) and os.path.exists(VECT_FILE):
-model = joblib.load(MODEL_FILE)
-vectorizer = joblib.load(VECT_FILE)
+    model = joblib.load(MODEL_FILE)
+    vectorizer = joblib.load(VECT_FILE)
 else:
-print('Warning: model or vectorizer not found. Put model.pkl and vectorizer.pkl in the app folder.')
-
-
-app = FastAPI(title='Smart Expense Advisor API')
+    model = None
+    vectorizer = None
+    print("⚠️ model.pkl or vectorizer.pkl not found.")
 
 
 class PredictRequest(BaseModel):
-descriptions: List[str]
+    descriptions: List[str]
 
 
-@app.post('/predict')
+@app.post("/predict")
 def predict(req: PredictRequest):
-global model, vectorizer
-if model is None or vectorizer is None:
-raise HTTPException(status_code=500, detail='Model not loaded')
-descs = [d.lower() for d in req.descriptions]
-X = vectorizer.transform(descs)
-preds = model.predict(X)
-confidences = None
-try:
-confidences = model.predict_proba(X).max(axis=1).tolist()
-except Exception:
-confidences = [None] * len(preds)
-return {'predictions': [{'description': d, 'category': p, 'confidence': float(c) if c is not None else None} for d,p,c in zip(req.descriptions, preds, confidences)]}
+    if model is None or vectorizer is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Model or vectorizer missing on server."
+        )
+
+    cleaned = [d.lower() for d in req.descriptions]
+    X = vectorizer.transform(cleaned)
+    preds = model.predict(X)
+
+    # confidence (if available)
+    try:
+        confs = model.predict_proba(X).max(axis=1).tolist()
+    except Exception:
+        confs = [None] * len(preds)
+
+    return {
+        "predictions": [
+            {
+                "description": d,
+                "category": p,
+                "confidence": float(c) if c else None
+            }
+            for d, p, c in zip(req.descriptions, preds, confs)
+        ]
+    }
 
 
-@app.get('/')
+@app.get("/")
 def root():
-return {'message': 'Smart Expense Advisor API running'}
+    return {"message": "Smart Expense Advisor API running"}
